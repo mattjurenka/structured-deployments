@@ -1,11 +1,11 @@
 {
-  "name": "structured-deploy",
+  "name": "structured-deployments",
   "version": "1.0.0",
-  "description": "",
-  "main": "build/index.js",
+  "description": "dist/index.d.ts",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "build": "tsc --project tsconfig.json"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +17,8 @@
     "@types/node": "^20.14.10",
     "chalk": "^4.1.2",
     "dependency-graph": "^1.0.0"
-  }
+  },
+  "files": [
+    "/dist"
+  ]
 }

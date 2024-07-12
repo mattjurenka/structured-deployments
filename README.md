@@ -13,4 +13,5 @@ What this library is:
 What this library is not:
   - A replacement for Hardhat/Ethers, Foundry, or any kind of SDK meant for compiling contracts or abstracting HTTP
     communication with the RPC.
+  - Something tailored for those with extremely simple deploy processes
   - Something tailored for those just getting into blockchain
