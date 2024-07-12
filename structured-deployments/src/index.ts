@@ -137,9 +137,9 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                 continue
             }
 
-            const dependencies_mismatch = saved_state.dependencies.some(dependency => {
-                JSON.stringify(dependency.output) !== JSON.stringify(state_file[name].output)
-            })
+            const dependencies_mismatch = saved_state.dependencies.some(dependency => 
+                JSON.stringify(dependency.output) !== JSON.stringify(state_file[dependency.name]?.output)
+            )
             if (dependencies_mismatch) {
                 mark_needs_running(name)
                 continue
@@ -188,13 +188,9 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
     let task_chain = Promise.resolve()
     
     console.log("")
-    process.stdout.write(chalk.bold("Running Tasks: "))
     const in_timeout: Record<string, number> = {}
     const is_running = new Set<string>()
     while (needs_running.size > 0) {
-        process.stdout.cursorTo(15)
-        process.stdout.clearLine(1)
-        is_running.forEach(task => process.stdout.write(chalk.green(task) + ", "))
         // Give the event loop a chance to process promises in case of a tight loop waiting
         // for something running
 
