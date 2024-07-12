@@ -15,3 +15,5 @@ What this library is not:
     communication with the RPC.
   - Something tailored for those with extremely simple deploy processes
   - Something tailored for those just getting into blockchain
+
+Documentation coming soon

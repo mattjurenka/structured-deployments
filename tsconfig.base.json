@@ -16,6 +16,6 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "target": "es2020",
-    "skipLibCheck": true
+    "skipLibCheck": false
   }
 }
