@@ -89,7 +89,7 @@ export function register_task<Depends extends [...any[]], Returns extends Record
 const get_state_file = async (): Promise<StateFile> => {
     // if state file exists, parse it and return
     try {
-        const state_file = await readFile("web3-provision/state.json", { encoding: "utf8"})
+        const state_file = await readFile("structured-deployments/state.json", { encoding: "utf8"})
         return JSON.parse(state_file)        
     } catch (err) {}
     
@@ -190,6 +190,9 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
     console.log("")
     const in_timeout: Record<string, number> = {}
     const is_running = new Set<string>()
+    const cancelled = new Set<string>()
+    const completed = new Set<string>()
+    const failed = new Set<string>()
     while (needs_running.size > 0) {
         // Give the event loop a chance to process promises in case of a tight loop waiting
         // for something running
@@ -205,24 +208,61 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                         in_timeout[name] = Date.now() + timeout
                     } else {
                         const dependency_values = task.dependencies.map(({ name }) => state_file[name].output)
-                        needs_running.delete(name)
-                        is_running.add(name)
-                        // Begin task immediately and add promise to task_chain
-                        const task_resolution = (async () => {
-                            state_file[name].output = await task.action(dependency_values)
-                            state_file[name].dependencies = task.dependencies.map(({ name }) => ({
-                                output: state_file[name].output,
-                                name
-                            }))
-                            is_running.delete(name)
-                        })()
-                        task_chain = task_chain.then(() => task_resolution)                        
+                        // Begin task and add promise to task_chain
+                        // Check to see if it has been cancelled
+                        if (cancelled.has(name)) {
+                            needs_running.delete(name)
+                            is_running.add(name)
+
+                            const task_resolution = task.action(dependency_values)
+                                .then(async output => {
+                                    state_file[name].output = output
+                                    state_file[name].dependencies = task.dependencies.map(({ name }) => ({
+                                        output: state_file[name].output,
+                                        name
+                                    }))
+                                    completed.add(name)
+                                })
+                                .catch(async (err) => {
+                                    console.log(chalk.red(`Task ${name} aborted with error: ${err}`))
+                                    const to_cancel = dependency_graph.dependantsOf(name)
+                                    failed.add(name)
+                                    if (to_cancel.length > 0) {
+                                        console.log(chalk.red("Cancelling execution of all dependant tasks: " + to_cancel.join(",")))
+                                        to_cancel.forEach(name_to_cancel => {
+                                            is_running.delete(name_to_cancel)
+                                            cancelled.add(name_to_cancel)
+                                        })
+                                    }
+                                })
+                                .finally(() => is_running.delete(name))
+                            task_chain = task_chain.then(() => task_resolution)                        
+                        }
                     }
                 }
             }
         }
     }
+
+    console.log("")
+    if (cancelled.size > 0) {
+        console.log(chalk.bold("Tasks that never ran because of a failed dependency:"))
+        completed.forEach(name => console.log("  - " + chalk.gray(name)))        
+        console.log("")
+    }
     
+    if (completed.size > 0) {
+        console.log(chalk.bold("Tasks completed successfully:"))
+        completed.forEach(name => console.log("  + " + chalk.green(name)))
+        console.log("")
+    }
+
+    if (failed.size > 0) {
+        console.log(chalk.bold("Tasks that failed:"))
+        completed.forEach(name => console.log("  x " + chalk.red(name)))        
+        console.log("")
+    }
+
     await task_chain
 
     return state_file
@@ -235,10 +275,11 @@ export const sync_tasks = async () => {
     const state_file = await get_state_file()
     const outfile = await run_tasks(state_file)
     
-    console.log(chalk.bold("All tasks completed, writing to state file."))
+    console.log(chalk.bold("Writing to state file."))
     try {
-        await mkdir("web3-provision")
+        await mkdir("structured-deployments")
     } catch(e) {}
 
-    await writeFile("web3-provision/state.json", JSON.stringify(outfile, undefined, 4))
+    await writeFile("structured-deployments/state.json", JSON.stringify(outfile, undefined, 4))
+    process.exit(0)
 }
