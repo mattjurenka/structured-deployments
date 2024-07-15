@@ -63,4 +63,17 @@ export const register_contract_deploy = async <Depends extends [...any[]], Facto
     return deploy_task
 }
 
+//export const register_contract_call = async <Depends extends [...any[]], Factory extends ContractFactory>(
+//    factory: Factory,
+//    name: string,
+//    dependencies: DependentTasks<Depends>,
+//    get_args: (deps: Depends) => Promise<Parameters<Factory[""]>>,
+//    verify_fqn?: string
+//): Promise<Task<Depends, { trx_return: string }>> => {
+//    return register_task(name, dependencies, async (deps) => {
+//        const args = await get_args(deps)
+//        return { trx_return: "" }
+//    })
+//}
+
 export type * from "@structured-deployments/core"

@@ -1,0 +1,38 @@
+{
+    "Gold Token - Deploy": {
+        "dependencies": [],
+        "output": {
+            "contract_address": "0x294Df73372330fEdf94Ea6821F7392084Dd6d1EF"
+        }
+    },
+    "Lock - Deploy": {
+        "dependencies": [
+            {
+                "output": {
+                    "contract_address": "0x294Df73372330fEdf94Ea6821F7392084Dd6d1EF"
+                },
+                "name": "Gold Token - Deploy"
+            }
+        ],
+        "output": {
+            "contract_address": "0xd2ee497D1A07B36791c7Bc75407aa47EFb865883"
+        }
+    },
+    "Deposit to Lock": {
+        "dependencies": [
+            {
+                "output": {
+                    "contract_address": "0xd2ee497D1A07B36791c7Bc75407aa47EFb865883"
+                },
+                "name": "Lock - Deploy"
+            },
+            {
+                "output": {
+                    "contract_address": "0x294Df73372330fEdf94Ea6821F7392084Dd6d1EF"
+                },
+                "name": "Gold Token - Deploy"
+            }
+        ],
+        "output": {}
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": ["./scripts", "./typechain-types"],
+  "files": ["./hardhat.config.ts"],
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "preserveSymlinks": true,
+    "declaration": false,
+    "declarationMap": false
+  }
+}

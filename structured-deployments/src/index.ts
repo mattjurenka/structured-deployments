@@ -210,7 +210,7 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                         const dependency_values = task.dependencies.map(({ name }) => state_file[name].output)
                         // Begin task and add promise to task_chain
                         // Check to see if it has been cancelled
-                        if (cancelled.has(name)) {
+                        if (!cancelled.has(name)) {
                             needs_running.delete(name)
                             is_running.add(name)
 
