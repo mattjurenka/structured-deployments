@@ -1,6 +1,6 @@
 {
   "name": "@structured-deployments/core",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "dist/index.d.ts",
   "main": "dist/index.js",
   "scripts": {
