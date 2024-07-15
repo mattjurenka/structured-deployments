@@ -30,9 +30,10 @@ import { sync_tasks, register_task } from "@structured-deployments/core";
         "Deposit to Lock",
         [deploy_lock, deploy_mock_erc],
         async ([deploy_lock_output, deploy_erc_output]) => {
-            console.log("Deploying to Lock")
+            console.log("Depositing GLD Token to Lock contract")
             const gold_token = await ethers.getContractAt("GLDToken", deploy_erc_output.contract_address)
             const tx = await gold_token.transfer(deploy_lock_output.contract_address, ethers.parseEther("5"))
+            console.log("Successfully deposited GLD into Lock")
             return { tx_hash: tx.hash }
         }
     )
