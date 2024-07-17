@@ -4,15 +4,15 @@ import { sync_tasks, register_task } from "@structured-deployments/core";
 
 (async () => {
     const deploy_mock_erc = await register_contract_deploy(
-        await ethers.getContractFactory("GLDToken"),
         "Gold Token",
+        await ethers.getContractFactory("GLDToken"),
         [],
         async () => ([ethers.parseEther("10")])
     )
 
     const deploy_lock = await register_contract_deploy(
-        await ethers.getContractFactory("Lock"),
         "Lock",
+        await ethers.getContractFactory("Lock"),
         [deploy_mock_erc],
         async ([deploy_erc_output]) => {
             const block_timestamp = (await ethers.provider.getBlock("latest"))?.timestamp
