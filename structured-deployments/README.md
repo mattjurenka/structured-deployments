@@ -9,7 +9,6 @@ This leads to two crucial advantages.
 1. Deploying is FAST. If we have a task that takes a long time, we can run other things in the background while we are waiting for it to finish. If you modify the contract code, or want to add something extra to your deploy script, you will only have to re-deploy a few things instead of everything, making development itself faster by tightening the code-deploy-test loop.
 2. You spend significantly less testnet tokens on gas while deploying. This is especially important if you are in a ecosystem where testnet tokens are hard to come by. No more needing to bot the testnet faucet or beg for tokens in the dev channel on Telegram/Discord.
 
-
 ## Who should use this library?
 
 You should use this library if:
@@ -20,6 +19,69 @@ You should use this library if:
 You should NOT use this library if:
   - You have a very simple contract deployment process that only runs on one EVM chain at a time (use hardhat ignition)
   - You are only looking for an RPC client and not a way to manage your entire deploy process (use each chain's sdk like ethers or @mystenlabs/sui.js)
+
+## Basic Example
+
+In this example, we need to do three things:
+
+1. Deploy GLDToken, which is just a mock ERC20 token that gives an initial supply of 10 to the deployer
+2. Deploy Lock, which holds a specific amount of a given ERC20 that is withdrawable by anyone after a certain block timestamp
+3. Deposit GLDToken into Lock
+
+The task dependency graph looks like this:
+
+`Deploy GLDToken -> Deploy Lock -> Transfer 5 GLDToken to Lock`
+
+```
+import { ethers } from "hardhat"
+import { register_contract_deploy } from "@structured-deployments/evm-ethers"
+import { sync_tasks, register_task } from "@structured-deployments/core";
+
+(async () => {
+    const deploy_mock_erc = await register_contract_deploy(
+        "Gold Token",
+        await ethers.getContractFactory("GLDToken"),
+        [],
+        async () => ([ethers.parseEther("10")]) // Array of constructor args. In this situation, 
+                                                // 10 GLDToken will be minted to deployer
+    )
+
+    const deploy_lock = await register_contract_deploy(
+        "Lock",
+        await ethers.getContractFactory("Lock"),
+        [deploy_mock_erc],
+        async ([deploy_erc_output]) => {
+            const block_timestamp = (await ethers.provider.getBlock("latest"))?.timestamp
+            if (!block_timestamp) {
+                throw new Error("Could not retrieve latest block_timestamp")
+            }
+            return [
+                block_timestamp + 60 * 60 * 24 * 7, // Accessible in 1 week
+                deploy_erc_output.contract_address
+            ]
+        }
+    )
+
+    register_task(
+        "Deposit to Lock",
+        [deploy_lock, deploy_mock_erc],
+        async ([deploy_lock_output, deploy_erc_output]) => {
+            console.log("Depositing GLD Token to Lock contract")
+            const gold_token = await ethers.getContractAt("GLDToken", deploy_erc_output.contract_address)
+            const tx = await gold_token.transfer(deploy_lock_output.contract_address, ethers.parseEther("5"))
+            console.log("Successfully deposited GLD into Lock")
+            return { tx_hash: tx.hash }
+        }
+    )
+
+    await sync_tasks()
+
+})()
+```
+
+
+Full example code can be found in the `examples` folder
+
 
 ## Install
 
