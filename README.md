@@ -32,7 +32,7 @@ The task dependency graph looks like this:
 
 `Deploy GLDToken -> Deploy Lock -> Transfer 5 GLDToken to Lock`
 
-```
+```typescript
 import { ethers } from "hardhat"
 import { register_contract_deploy } from "@structured-deployments/evm-ethers"
 import { sync_tasks, register_task } from "@structured-deployments/core";
