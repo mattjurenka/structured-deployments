@@ -193,11 +193,17 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
     const cancelled = new Set<string>()
     const completed = new Set<string>()
     const failed = new Set<string>()
+    let iters_since_ran = 0
     while (needs_running.size > 0) {
+        iters_since_ran += 1
         // Give the event loop a chance to process promises in case of a tight loop waiting
         // for something running
-
         await new Promise(resolve => setTimeout(resolve, 50))
+        if (iters_since_ran % 600 === 0) {
+            console.log(chalk.bold("Status Report"))
+            console.log("    Running:", chalk.green(Array.from(is_running.values()).join(", ")))
+            console.log("    Scheduled:", chalk.gray(Array.from(needs_running.values()).join(", ")))
+        }
         for (const name of needs_running) {
             const task = tasks[name]
             if (!(name in in_timeout) || in_timeout[name] < Date.now()) {
@@ -211,10 +217,27 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                         // Begin task and add promise to task_chain
                         // Check to see if it has been cancelled
                         if (!cancelled.has(name)) {
+                            iters_since_ran = 0
                             needs_running.delete(name)
                             is_running.add(name)
 
-                            const task_resolution = task.action(dependency_values)
+                            const task_resolution = new Promise<Record<string, SerializableValue>>(async (resolve, reject) => {
+                                let has_resolved = false
+                                setTimeout(() => {
+                                    if (!has_resolved) {
+                                        has_resolved = true
+                                        reject("Task took longer than 3m")
+                                    }
+                                }, 3 * 60 * 1000)
+                                try {
+                                    const retval = await task.action(dependency_values)
+                                    has_resolved = true
+                                    resolve(retval)
+                                } catch (err) {
+                                    reject(err)
+                                }
+
+                            })
                                 .then(async output => {
                                     state_file[name].output = output
                                     state_file[name].dependencies = task.dependencies.map(({ name }) => ({
@@ -228,9 +251,9 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                                     const to_cancel = dependency_graph.dependantsOf(name)
                                     failed.add(name)
                                     if (to_cancel.length > 0) {
-                                        console.log(chalk.red("Cancelling execution of all dependant tasks: " + to_cancel.join(",")))
+                                        console.log(chalk.red("Cancelling execution of all dependant tasks: " + to_cancel.join(", ")))
                                         to_cancel.forEach(name_to_cancel => {
-                                            is_running.delete(name_to_cancel)
+                                            needs_running.delete(name_to_cancel)
                                             cancelled.add(name_to_cancel)
                                         })
                                     }
@@ -244,10 +267,12 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
         }
     }
 
+    await task_chain
+
     console.log("")
     if (cancelled.size > 0) {
         console.log(chalk.bold("Tasks that never ran because of a failed dependency:"))
-        completed.forEach(name => console.log("  - " + chalk.gray(name)))        
+        cancelled.forEach(name => console.log("  - " + chalk.gray(name)))        
         console.log("")
     }
     
@@ -259,11 +284,9 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
 
     if (failed.size > 0) {
         console.log(chalk.bold("Tasks that failed:"))
-        completed.forEach(name => console.log("  x " + chalk.red(name)))        
+        failed.forEach(name => console.log("  x " + chalk.red(name)))        
         console.log("")
     }
-
-    await task_chain
 
     return state_file
 }
