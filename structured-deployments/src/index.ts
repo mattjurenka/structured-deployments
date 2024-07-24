@@ -3,6 +3,9 @@ import { DepGraph } from "dependency-graph"
 import { mkdir, readFile, writeFile } from "fs/promises"
 import readline from "node:readline/promises"
 
+import checkbox from "@inquirer/checkbox"
+import input from "@inquirer/input"
+
 const rl = readline.createInterface(process.stdin, process.stdout)
 
 export type SerializableValue = string | number | boolean
@@ -112,6 +115,68 @@ const get_state_file = async (): Promise<StateFile> => {
     return state_file
 }
 
+const wait_ms = async (ms: number) => new Promise(res => setTimeout(res, ms))
+
+const confirm_tasks = async (_needs_running: Set<string>): Promise<Set<string>> => {
+    const needs_running = new Set([..._needs_running])
+    while (true) {
+        const will_not_run = new Set(Object.keys(tasks).filter(task => !needs_running.has(task)))
+        console.log(chalk.bold("Registered tasks that will not run:"))
+        will_not_run.forEach(task => console.log("  - " + chalk.gray(task)))
+        console.log("")
+
+        if (needs_running.size > 0) {
+            console.log(chalk.bold("Registered tasks that will run:"))
+            needs_running.forEach(task => console.log("  + " + chalk.green(task)))
+        } else {
+            console.log(chalk.bold("Everything up to date -- No tasks need to be run"))        
+            process.exit(0)
+        }
+
+        let char = ""
+        while (!(new Set(["y", "c", "n", "r"]).has(char))) {
+            const in_str = await input({
+                message: "Would you like to continue? ([Y]es/[N]o/[R]erun Tasks/[C]ancel Tasks)",
+                default: "N"
+            })
+            char = in_str.trim().toLowerCase()
+        }
+
+        if (char === "y") {
+            return needs_running
+        } else if (char === "c") {
+            console.log("")
+            const choices = Array.from(needs_running).map(task => ({ value: task }))
+            const selection = await checkbox<string>({
+                instructions: "Press up and down to navigate, spacebar to select, enter to confirm",
+                message: "Select Tasks to Cancel - ",
+                choices,
+                loop: false
+            })
+            selection.forEach(task => {
+                needs_running.delete(task)
+                dependency_graph.dependantsOf(task).forEach(dependent_task => needs_running.delete(dependent_task))
+            })
+        } else if (char === "r") {
+            console.log("")
+            const choices = Array.from(will_not_run).map(task => ({ value: task }))
+            const selection = await checkbox<string>({
+                instructions: "Press up and down to navigate, spacebar to select, enter to confirm",
+                message: "Select Tasks to Run - ",
+                choices,
+                loop: false
+            })
+            selection.forEach(task => {
+                needs_running.add(task)
+                dependency_graph.dependantsOf(task).forEach(dependent_task => needs_running.add(dependent_task))
+            })
+        } else {
+            console.log("Aborting deploy...")
+            process.exit(0)
+        }
+    }
+}
+
 const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
     // Load state file
     
@@ -160,23 +225,7 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
         }
     }
 
-    console.log(chalk.bold("Found the following completed tasks:"))
-    Object.keys(tasks).filter(task => !needs_running.has(task)).forEach(task => console.log("  - " + chalk.gray(task)))
-    console.log("")
-
-    if (needs_running.size > 0) {
-        console.log(chalk.bold("Will run the following tasks:"))
-        needs_running.forEach(task => console.log("  + " + chalk.green(task)))
-    } else {
-        console.log(chalk.bold("Everything up to date -- No tasks need to be run"))        
-        process.exit(0)
-    }
-
-    console.log("")
-    const input = await rl.question(chalk.bold("Would you like to continue?") + " (Y/n) ")
-    if (input.toLowerCase() !== "y") {
-        process.exit(0)
-    }
+    const will_run = await confirm_tasks(needs_running)
     
     // Find task that is ready to run by iterating through all tasks in set
     // and finding one that has no dependencies that need to run, skipping
@@ -194,7 +243,7 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
     const completed = new Set<string>()
     const failed = new Set<string>()
     let iters_since_ran = 0
-    while (needs_running.size > 0) {
+    while (will_run.size > 0) {
         iters_since_ran += 1
         // Give the event loop a chance to process promises in case of a tight loop waiting
         // for something running
@@ -202,13 +251,13 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
         if (iters_since_ran % 600 === 0) {
             console.log(chalk.bold("Status Report"))
             console.log("    Running:", chalk.green(Array.from(is_running.values()).join(", ")))
-            console.log("    Scheduled:", chalk.gray(Array.from(needs_running.values()).join(", ")))
+            console.log("    Scheduled:", chalk.gray(Array.from(will_run.values()).join(", ")))
         }
-        for (const name of needs_running) {
+        for (const name of will_run) {
             const task = tasks[name]
             if (!(name in in_timeout) || in_timeout[name] < Date.now()) {
                 const direct_dependencies = dependency_graph.directDependenciesOf(name)
-                if (direct_dependencies.every(dependency => !(needs_running.has(dependency)) && !(is_running.has(dependency)))) {
+                if (direct_dependencies.every(dependency => !(will_run.has(dependency)) && !(is_running.has(dependency)))) {
                     const timeout = await task.timeout_for()
                     if (timeout > 0) {
                         in_timeout[name] = Date.now() + timeout
@@ -218,7 +267,7 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                         // Check to see if it has been cancelled
                         if (!cancelled.has(name)) {
                             iters_since_ran = 0
-                            needs_running.delete(name)
+                            will_run.delete(name)
                             is_running.add(name)
 
                             const task_resolution = new Promise<Record<string, SerializableValue>>(async (resolve, reject) => {
@@ -253,7 +302,7 @@ const run_tasks = async (state_file: StateFile): Promise<StateFile> => {
                                     if (to_cancel.length > 0) {
                                         console.log(chalk.red("Cancelling execution of all dependant tasks: " + to_cancel.join(", ")))
                                         to_cancel.forEach(name_to_cancel => {
-                                            needs_running.delete(name_to_cancel)
+                                            will_run.delete(name_to_cancel)
                                             cancelled.add(name_to_cancel)
                                         })
                                     }
