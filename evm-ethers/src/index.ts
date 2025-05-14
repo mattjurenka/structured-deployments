@@ -16,6 +16,8 @@ export const register_contract_deploy = async <Depends extends [...any[]], Facto
     const deploy_task = register_task(`${name} - Deploy`, dependencies, async (deps: Depends) => {
         console.log(`Deploying Contract: ${name}...`)
         const args = await get_args(deps)
+        const deploy_trx = await factory.getDeployTransaction(...args, {})
+        //console.log(JSON.stringify(deploy_trx))
         const contract = await factory.deploy(...args, {})
         const deployed_transaction = contract.deploymentTransaction()
 

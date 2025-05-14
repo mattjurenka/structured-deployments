@@ -1,12 +1,10 @@
+import { mkdir, readFile, writeFile } from "fs/promises"
+
 import chalk from "chalk"
 import { DepGraph } from "dependency-graph"
-import { mkdir, readFile, writeFile } from "fs/promises"
-import readline from "node:readline/promises"
 
 import checkbox from "@inquirer/checkbox"
 import input from "@inquirer/input"
-
-const rl = readline.createInterface(process.stdin, process.stdout)
 
 export type SerializableValue = string | number | boolean
 
